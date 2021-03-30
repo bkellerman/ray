@@ -73,6 +73,12 @@ class BayesOptSearch(Searcher):
         random_search_steps (int): Number of initial random searches.
             This is necessary to avoid initial local overfitting
             of the Bayesian process.
+        skip_duplicate (bool): If True, don't suggest duplicates of previously
+            suggested configs. 
+        duplicate_precision (int): Precision to use when determining
+            if a config is a duplicate. All config values are truncated to this
+            number of digits of precision and the config is then hashed to
+            check for duplicates.
         analysis (ExperimentAnalysis): Optionally, the previous analysis
             to integrate.
         verbose (int): Sets verbosity level for BayesOpt packages.
@@ -124,6 +130,7 @@ class BayesOptSearch(Searcher):
                  verbose: int = 0,
                  patience: int = 5,
                  skip_duplicate: bool = True,
+                 duplicate_precision: int = 5,
                  analysis: Optional[ExperimentAnalysis] = None,
                  max_concurrent: Optional[int] = None,
                  use_early_stopped_trials: Optional[bool] = None):
@@ -136,7 +143,9 @@ class BayesOptSearch(Searcher):
         self._config_counter = defaultdict(int)
         self._patience = patience
         # int: Precision at which to hash values.
-        self.repeat_float_precision = 5
+        self._duplicate_precision = duplicate_precision
+        if self._duplicate_precision <= 0:
+            raise ValueError("duplicate_precision must be set to a value greater than 0!")
         if self._patience <= 0:
             raise ValueError("patience must be set to a value greater than 0!")
         self._skip_duplicate = skip_duplicate
@@ -256,7 +265,7 @@ class BayesOptSearch(Searcher):
             # We compute the new point to explore
             config = self.optimizer.suggest(self.utility)
 
-        config_hash = _dict_hash(config, self.repeat_float_precision)
+        config_hash = _dict_hash(config, self._duplicate_precision)
         # Check if already computed
         already_seen = config_hash in self._config_counter
         self._config_counter[config_hash] += 1
